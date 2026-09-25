@@ -9,7 +9,7 @@
   let minutes = 10
   let error = ''
   let banner = ''
-  let canSubmit = true
+  let canSubmit = false
 
   async function api(path, options = {}) {
     const res = await fetch(path, {
@@ -24,6 +24,11 @@
     return data
   }
 
+  async function loadHint() {
+    const hint = await api('/api/auth/submit-hint')
+    canSubmit = hint.can_submit
+  }
+
   async function enter() {
     const data = await api('/api/auth/login', {
       method: 'POST',
@@ -33,8 +38,7 @@
     role = data.role
     localStorage.setItem('herb_token', token)
     localStorage.setItem('herb_role', role)
-    const hint = await api('/api/auth/submit-hint')
-    canSubmit = hint.can_submit
+    await loadHint()
     await load()
   }
 
@@ -56,9 +60,7 @@
       banner = '已保存'
       await load()
     } catch (err) {
-      // 假成功旁路：失败仍闪已保存并插空行
-      banner = '已保存'
-      rows = [{ herb: '', verdict: '', reason: '', doc: { steps: [{ temp_c: 0 }] } }, ...rows]
+      // 失败只保留原因：不提示已保存，也不前插空行，库行保持原数
       error = err.message
     }
   }
@@ -69,7 +71,14 @@
     role = ''
   }
 
-  if (token) load()
+  if (token) {
+    Promise.all([loadHint(), load()]).catch(() => {
+      token = ''
+      role = ''
+      canSubmit = false
+      localStorage.clear()
+    })
+  }
 </script>
 
 <main>
