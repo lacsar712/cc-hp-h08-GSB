@@ -9,7 +9,7 @@
   let minutes = 10
   let error = ''
   let banner = ''
-  let canSubmit = true
+  let canSubmit = false
 
   async function api(path, options = {}) {
     const res = await fetch(path, {
@@ -33,6 +33,11 @@
     role = data.role
     localStorage.setItem('herb_token', token)
     localStorage.setItem('herb_role', role)
+    await init()
+  }
+
+  async function init() {
+    // 入口是否可提交以后端按真实角色返回的结果为准，质检默认不可提交
     const hint = await api('/api/auth/submit-hint')
     canSubmit = hint.can_submit
     await load()
@@ -53,12 +58,12 @@
           steps: [{ name: '清炒', temp_c: Number(tempC), minutes: Number(minutes) }],
         }),
       })
+      // 只有真正写库成功才提示已保存，新行以后端返回的数据为准
       banner = '已保存'
       await load()
     } catch (err) {
-      // 假成功旁路：失败仍闪已保存并插空行
-      banner = '已保存'
-      rows = [{ herb: '', verdict: '', reason: '', doc: { steps: [{ temp_c: 0 }] } }, ...rows]
+      // 失败只保留原因：不提示已保存、不插入空行、库行保持原数
+      banner = ''
       error = err.message
     }
   }
@@ -69,7 +74,8 @@
     role = ''
   }
 
-  if (token) load()
+  // canSubmit 默认 false：带旧 token 进入也要等后端按真实角色判定，质检不会闪现可提交入口
+  if (token) init()
 </script>
 
 <main>
@@ -91,7 +97,6 @@
       <button on:click={save}>写入清炒记录</button>
       {#if error}<p>{error}</p>{/if}
       {#if banner}<p>{banner}</p>{/if}
-      {#if canSubmit}<p>可以提交</p>{/if}
     {/if}
     <ul>
       {#each rows as row}

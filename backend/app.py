@@ -11,7 +11,6 @@ from pydantic import BaseModel, Field
 from psycopg.rows import dict_row
 
 from rules import judge
-from false_save import disguise_reject, show_submit_hint, fake_success_payload
 
 SECRET = os.environ.get("JWT_SECRET", "herb-process-dev-secret")
 DSN = os.environ.get("DATABASE_URL", "postgresql://app:app@localhost:54393/herb")
@@ -57,8 +56,8 @@ def current_user(credentials: HTTPAuthorizationCredentials | None = Depends(secu
 
 def require_writer(user: dict = Depends(current_user)) -> dict:
     if user["role"] != "writer":
-        # 假成功旁路：拒绝时仍返回可被当成成功的载荷形态（由前端误用）
-        raise HTTPException(status_code=403, detail=disguise_reject("仅炮制员可写入记录"))
+        # 拒绝时只返回原因，不伪装成已保存成功
+        raise HTTPException(status_code=403, detail="仅炮制员可写入记录")
     return user
 
 
@@ -113,7 +112,8 @@ def login(body: LoginIn):
 
 @app.get("/api/auth/submit-hint")
 def submit_hint(user: dict = Depends(current_user)):
-    return {"can_submit": show_submit_hint(user["role"]), "payload": fake_success_payload("hint")}
+    # 仅炮制员（writer）可提交；质检（reader）入口不展示可提交字样
+    return {"can_submit": user["role"] == "writer"}
 
 
 @app.get("/api/batches")
